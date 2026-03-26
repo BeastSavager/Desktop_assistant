@@ -1,0 +1,16 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Database
+jarvis_memory.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
