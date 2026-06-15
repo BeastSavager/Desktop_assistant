@@ -5,12 +5,10 @@ text-to-speech (via edge-tts + pygame for playback).
 """
 
 import asyncio
-import io
 import logging
 import os
 import tempfile
 import threading
-from typing import Optional
 
 import speech_recognition as sr
 
@@ -32,8 +30,13 @@ _recognizer = sr.Recognizer()
 _recognizer.energy_threshold = ENERGY_THRESHOLD
 _recognizer.dynamic_energy_threshold = True
 
+# Shared across the assistant: only one thread may hold the microphone at a time.
+# Both listen() and the wake-word detector acquire this before opening the mic,
+# which prevents the PyAudio "device already in use" race between workers.
+mic_lock = threading.Lock()
 
-def listen(timeout: Optional[int] = None, phrase_limit: Optional[int] = None) -> Optional[str]:
+
+def listen(timeout: int | None = None, phrase_limit: int | None = None) -> str | None:
     """
     Listen to the microphone and return transcribed text.
     Returns None if nothing was heard or an error occurred.
@@ -42,13 +45,9 @@ def listen(timeout: Optional[int] = None, phrase_limit: Optional[int] = None) ->
     phrase_limit = phrase_limit or LISTEN_PHRASE_LIMIT
 
     try:
-        with sr.Microphone() as source:
-            logger.debug("Adjusting for ambient noise…")
-            _recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        with mic_lock, sr.Microphone() as source:
             logger.info("Listening…")
-            audio = _recognizer.listen(
-                source, timeout=timeout, phrase_time_limit=phrase_limit
-            )
+            audio = _recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_limit)
     except sr.WaitTimeoutError:
         logger.debug("Listen timed out — no speech detected.")
         return None
@@ -83,6 +82,7 @@ def _ensure_pygame() -> None:
     if not _pygame_initialized:
         try:
             import pygame
+
             pygame.mixer.init()
             _pygame_initialized = True
         except Exception as e:
@@ -92,6 +92,7 @@ def _ensure_pygame() -> None:
 async def _generate_speech(text: str, output_path: str) -> None:
     """Use edge-tts to generate an mp3 file from text."""
     import edge_tts
+
     communicate = edge_tts.Communicate(text, TTS_VOICE, rate=TTS_RATE)
     await communicate.save(output_path)
 

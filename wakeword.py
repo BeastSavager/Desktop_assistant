@@ -5,11 +5,11 @@ Lightweight, no external API dependency beyond Google STT.
 """
 
 import logging
-from typing import Optional
 
 import speech_recognition as sr
 
-from config import WAKE_WORD_ALTERNATIVES, ENERGY_THRESHOLD
+from config import ENERGY_THRESHOLD, WAKE_WORD_ALTERNATIVES
+from voice import mic_lock
 
 logger = logging.getLogger("jarvis.wakeword")
 
@@ -23,25 +23,22 @@ class WakeWordDetector:
         self.recognizer.dynamic_energy_threshold = True
         self._active = True
 
-    def listen_for_wake_word(self, timeout: int = 3) -> bool:
+    def listen_for_wake_word(self, timeout: int = 3) -> tuple[bool, str]:
         """
         Listen for a short burst of audio and check for the wake word.
-        Returns True if wake word detected, False otherwise.
+        Returns (detected: bool, remaining_text: str).
         """
         if not self._active:
-            return False
+            return False, ""
 
         try:
-            with sr.Microphone() as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.3)
-                audio = self.recognizer.listen(
-                    source, timeout=timeout, phrase_time_limit=3
-                )
+            with mic_lock, sr.Microphone() as source:
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=4)
         except sr.WaitTimeoutError:
-            return False
+            return False, ""
         except OSError as e:
             logger.error("Microphone error during wake word detection: %s", e)
-            return False
+            return False, ""
 
         try:
             text = self.recognizer.recognize_google(audio).lower().strip()
@@ -49,22 +46,28 @@ class WakeWordDetector:
 
             for phrase in WAKE_WORD_ALTERNATIVES:
                 if phrase in text:
-                    logger.info("✅ Wake word detected!")
-                    return True
-            return False
+                    logger.info("✅ Wake word detected: '%s'", text)
+                    # Extract everything after the wake word
+                    idx = text.find(phrase)
+                    remaining = text[idx + len(phrase) :].strip()
+                    remaining = remaining.lstrip(",.?! ").strip()
+                    return True, remaining
+            return False, ""
 
         except sr.UnknownValueError:
-            return False
+            return False, ""
         except sr.RequestError as e:
             logger.error("Wake word STT error: %s", e)
-            return False
+            return False, ""
 
-    def wait_for_wake_word(self) -> None:
-        """Block until the wake word is detected."""
+    def wait_for_wake_word(self) -> str:
+        """Block until the wake word is detected and return any remaining command text."""
         logger.info("Waiting for wake word…")
         while self._active:
-            if self.listen_for_wake_word():
-                return
+            detected, remaining = self.listen_for_wake_word()
+            if detected:
+                return remaining
+        return ""
 
     def stop(self) -> None:
         """Stop the detector loop."""

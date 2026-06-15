@@ -1,8 +1,26 @@
-openai>=1.0.0
-SpeechRecognition>=3.10.0
-PyAudio>=0.2.13
-edge-tts>=6.1.0
-pygame>=2.5.0
-pyautogui>=0.9.54
-PyQt5>=5.15.0
-python-dotenv>=1.0.0
+# Runtime dependencies for Jarvis AI Assistant.
+# Versions are pinned to known-good lower bounds; run `pip install -r requirements.txt`.
+
+# ── Core LLM / agent ──────────────────────────────────────────────────────────
+openai>=1.40,<3            # OpenAI-compatible client (local Ollama or any cloud)
+python-dotenv>=1.0         # .env loading
+
+# ── Web app backend ───────────────────────────────────────────────────────────
+fastapi>=0.110             # web API + WebSocket
+uvicorn[standard]>=0.27    # ASGI server
+python-multipart>=0.0.9    # file uploads
+httpx>=0.27               # web fetch + health checks
+
+# ── Web access + file tools ───────────────────────────────────────────────────
+beautifulsoup4>=4.12       # clean text extraction from fetched pages
+ddgs>=6.0                 # web search (DuckDuckGo, no API key)
+pypdf>=4.0                # read PDF files
+python-docx>=1.1          # read .docx files
+
+# ── Voice / desktop GUI (optional — only for the legacy PyQt5 app & CLI) ───────
+SpeechRecognition>=3.10    # microphone capture + Google STT
+PyAudio>=0.2.13            # microphone backend for SpeechRecognition
+edge-tts>=6.1              # Microsoft neural text-to-speech
+pygame>=2.5                # audio playback for TTS
+pyautogui>=0.9.54          # keyboard automation (dangerous tools only)
+PyQt5>=5.15                # legacy desktop GUI (python main.py)

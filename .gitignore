@@ -1,16 +1,48 @@
-# Environment
-.env
-.venv/
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
 
-# Database
+# ─── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Environment & secrets ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Databases / runtime data ────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
 jarvis_memory.db
 
-# IDE
+# ─── File workspace (user uploads / generated files) ──────────────────────────────
+workspace/
+
+# ─── PyInstaller build artifacts ──────────────────────────────────────────────────
+*.spec.bak
+
+# ─── Tooling caches ──────────────────────────────────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ─── IDE / editor ────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
 
-# OS
+# ─── OS ──────────────────────────────────────────────────────────────────────────
 Thumbs.db
 .DS_Store

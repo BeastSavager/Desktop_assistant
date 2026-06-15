@@ -6,15 +6,14 @@ Short-term context (recent messages) and long-term recall via SQLite.
 import sqlite3
 import threading
 from datetime import datetime
-from typing import Optional
 
-from config import DATABASE_PATH, CONTEXT_WINDOW
+from config import CONTEXT_WINDOW, DATABASE_PATH
 
 
 class MemoryManager:
     """Thread-safe SQLite-backed conversation memory."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self.db_path = db_path or DATABASE_PATH
         self._local = threading.local()
         self._init_db()
@@ -56,7 +55,7 @@ class MemoryManager:
         )
         conn.commit()
 
-    def get_recent_messages(self, n: Optional[int] = None) -> list[dict]:
+    def get_recent_messages(self, n: int | None = None) -> list[dict]:
         """Return the last *n* messages as a list of {role, content} dicts."""
         n = n or CONTEXT_WINDOW
         conn = self._get_conn()
@@ -76,8 +75,7 @@ class MemoryManager:
             (f"%{query}%", limit),
         ).fetchall()
         return [
-            {"role": r["role"], "content": r["content"], "timestamp": r["timestamp"]}
-            for r in rows
+            {"role": r["role"], "content": r["content"], "timestamp": r["timestamp"]} for r in rows
         ]
 
     # ── facts / persistent knowledge ──────────────────────────────────────
@@ -89,12 +87,23 @@ class MemoryManager:
         )
         conn.commit()
 
-    def get_fact(self, key: str) -> Optional[str]:
+    def get_fact(self, key: str) -> str | None:
         conn = self._get_conn()
-        row = conn.execute(
-            "SELECT value FROM facts WHERE key = ?", (key,)
-        ).fetchone()
+        row = conn.execute("SELECT value FROM facts WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else None
+
+    def get_all_facts(self) -> list[dict]:
+        """Return every stored fact as {key, value, timestamp} dicts."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT key, value, timestamp FROM facts ORDER BY key").fetchall()
+        return [{"key": r["key"], "value": r["value"], "timestamp": r["timestamp"]} for r in rows]
+
+    def delete_fact(self, key: str) -> bool:
+        """Delete a fact by key. Returns True if a row was removed."""
+        conn = self._get_conn()
+        cur = conn.execute("DELETE FROM facts WHERE key = ?", (key,))
+        conn.commit()
+        return cur.rowcount > 0
 
     # ── housekeeping ──────────────────────────────────────────────────────
     def clear_short_term(self) -> None:

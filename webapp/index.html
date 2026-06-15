@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jarvis AI Assistant</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">⚡ JARVIS</div>
+    <div class="status">
+      <span id="statusDot" class="dot"></span>
+      <span id="statusText">Connecting…</span>
+      <span id="dangerBadge" class="badge hidden">⚠ Dangerous tools ON</span>
+      <span id="modelInfo" class="muted"></span>
+    </div>
+    <div class="header-actions">
+      <button id="wakeBtn" class="ghost" title="Hands-free: say 'Hey Jarvis'">🎙️ Hey Jarvis: OFF</button>
+      <button id="toggleSidebar" class="ghost">☰ Panels</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="chatPane">
+      <div id="messages"></div>
+      <div id="activity" class="activity hidden"></div>
+      <div id="inputBar">
+        <button id="micBtn" class="icon" title="Hold to talk">🎙️</button>
+        <input id="textInput" type="text" placeholder="Ask Jarvis anything…" autocomplete="off" />
+        <button id="sendBtn" class="primary">➔</button>
+      </div>
+    </section>
+
+    <aside id="sidebar">
+      <div class="panel">
+        <h3>📁 Workspace</h3>
+        <div id="dropZone" class="drop">Drop files here or click to upload</div>
+        <input id="fileInput" type="file" class="hidden" />
+        <ul id="fileList" class="list"></ul>
+      </div>
+      <div class="panel">
+        <h3>🧠 Memory</h3>
+        <ul id="factList" class="list"></ul>
+        <button id="clearHistoryBtn" class="ghost small">Clear conversation history</button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

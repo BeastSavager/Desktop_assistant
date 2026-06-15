@@ -1,0 +1,19 @@
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+extend-exclude = "(\\.venv|build|dist|webapp)"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "build", "dist", "webapp"]
+
+[tool.ruff.lint]
+# E/F = pyflakes+pycodestyle, I = isort, B = bugbear, UP = pyupgrade
+select = ["E", "F", "I", "B", "UP"]
+# E501 (line length) is handled by black; we don't fail CI on it.
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

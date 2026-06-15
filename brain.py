@@ -1,19 +1,35 @@
 """
 Jarvis AI Assistant — Brain Module
-LLM reasoning, function/tool calling, and multi-step agent logic.
-Uses OpenAI ChatCompletion with tool_calls support.
+LLM reasoning and a real multi-round tool-calling loop.
+
+Jarvis talks to an OpenAI-compatible chat endpoint. By default that is a local
+Ollama server (``llama3.2``); set ``LLM_PROVIDER=openai_compatible`` plus the
+``LLM_*`` env vars to use any cloud endpoint instead — no code change needed.
+
+Each turn runs an agentic loop: the model may request tool calls, we execute them
+and feed the results back as plain text (small local models consume OpenAI
+``tool``-role messages unreliably), and let the model decide whether it needs more
+tools or is ready to answer — preserving the full conversation and system prompt.
+
+``stream_turn`` is the core generator: it yields ``tool`` / ``tool_result`` /
+``final`` events so the web UI can show live tool activity. ``think`` is a thin
+wrapper that drains it and returns the final text.
 """
 
 import json
 import logging
-from typing import Optional
+from collections.abc import Iterator
 
 from openai import OpenAI
 
 from config import (
-    OLLAMA_MODEL,
-    OLLAMA_BASE_URL,
+    IS_OLLAMA,
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    MAX_TOOL_ROUNDS,
     OLLAMA_MAX_TOKENS,
+    OLLAMA_NUM_THREADS,
     OLLAMA_TEMPERATURE,
     SYSTEM_PROMPT,
 )
@@ -22,95 +38,162 @@ from tools import TOOL_SCHEMAS, execute_tool
 
 logger = logging.getLogger("jarvis.brain")
 
+# Shown to the user when the model returns nothing usable, so Jarvis never
+# appears frozen.
+FALLBACK_REPLY = "I couldn't generate a response. Could you try again?"
+
+# Appended after tool results so the (often small) model answers with the data.
+_RESULTS_INSTRUCTION = (
+    "\n\nUsing these results, reply to my original request directly and "
+    "concisely, stating the actual information. Only call another tool if you "
+    "genuinely need more data."
+)
+
 
 class JarvisBrain:
-    """Wraps the OpenAI API, conversation context, and tool execution loop."""
+    """Wraps the LLM client, conversation context, and the tool-execution loop."""
 
     def __init__(self, memory: MemoryManager):
-        # We use the OpenAI python package but point it to local Ollama
-        self.client = OpenAI(
-            base_url=OLLAMA_BASE_URL,
-            api_key="ollama" # Required by the client, but unused by Ollama
-        )
+        self.client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "none")
         self.memory = memory
-        self.max_tool_rounds = 5  # safety cap for chained tool calls
+        self.max_tool_rounds = MAX_TOOL_ROUNDS
 
     # ── public API ────────────────────────────────────────────────────────
 
-    def think(self, user_message: str) -> str:
+    def warmup(self) -> None:
         """
-        Full agent turn:
-          1. Build messages (system + history + new user message)
-          2. Call LLM
-          3. If LLM requests tool calls → execute → feed results back → repeat
-          4. Return final text response
-        """
-        # Store user message
-        self.memory.add_message("user", user_message)
+        Pre-load the model into memory so the first real reply is fast.
 
-        # Build message list
+        Ollama loads the (multi-GB) model on the first request, which is the main
+        reason the first message feels slow. Calling this at startup pays that
+        cost up front; keep_alive=-1 then keeps the model resident.
+        """
+        if not IS_OLLAMA:
+            return
+        try:
+            self.client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=1,
+                extra_body={"keep_alive": -1},
+            )
+            logger.info("Model '%s' warmed up and resident.", LLM_MODEL)
+        except Exception as e:  # noqa: BLE001 - Ollama may not be up yet
+            logger.warning("Warmup skipped (model will load on first request): %s", e)
+
+    def think(self, user_message: str) -> str:
+        """Run one full agent turn and return Jarvis's reply text."""
+        reply = FALLBACK_REPLY
+        for event in self.stream_turn(user_message):
+            if event["type"] == "final":
+                reply = event["text"]
+        return reply
+
+    def stream_turn(self, user_message: str) -> Iterator[dict]:
+        """
+        Run one agent turn, yielding events as they happen:
+
+          {"type": "tool", "name": ...}                  — a tool is about to run
+          {"type": "tool_result", "name": ..., "result": ...}
+          {"type": "final", "text": ...}                 — the final reply
+
+        Tool results are stored to memory implicitly via the conversation; only
+        the user message and the final reply are persisted as chat history.
+        """
+        self.memory.add_message("user", user_message)
         messages = self._build_messages()
 
-        # Agent loop: LLM may request tools repeatedly
-        for _ in range(self.max_tool_rounds):
+        reply = ""
+        for round_num in range(self.max_tool_rounds):
+            # On the final allowed round, drop the tools so the model is forced
+            # to produce a textual answer instead of requesting more calls.
+            is_last_round = round_num == self.max_tool_rounds - 1
             try:
-                response = self.client.chat.completions.create(
-                    model=OLLAMA_MODEL,
-                    messages=messages,
-                    tools=TOOL_SCHEMAS,
-                    tool_choice="auto",
-                    temperature=OLLAMA_TEMPERATURE,
-                    max_tokens=OLLAMA_MAX_TOKENS,
-                )
-            except Exception as e:
-                error_msg = f"I'm having trouble connecting to my brain. Error: {e}"
-                logger.error("OpenAI API error: %s", e)
-                return error_msg
+                response = self._chat(messages, with_tools=not is_last_round)
+            except Exception as e:  # noqa: BLE001
+                logger.error("LLM request failed: %s", e)
+                reply = f"I'm having trouble connecting to my brain. Error: {e}"
+                break
 
-            choice = response.choices[0]
-            assistant_message = choice.message
+            message = response.choices[0].message
+            tool_calls = getattr(message, "tool_calls", None)
 
-            # If there are tool calls, execute them
-            if assistant_message.tool_calls:
-                # Append the assistant message (with tool_calls) to messages
-                messages.append(assistant_message)
+            if not tool_calls:
+                reply = (message.content or "").strip()
+                break
 
-                for tool_call in assistant_message.tool_calls:
-                    tool_name = tool_call.function.name
-                    try:
-                        tool_args = json.loads(tool_call.function.arguments)
-                    except json.JSONDecodeError:
-                        tool_args = {}
+            # Run the requested tools, emitting live events, then feed the
+            # results back as plain text for the next round.
+            round_results: list[str] = []
+            for tool_call in tool_calls:
+                yield {"type": "tool", "name": tool_call.function.name}
+                result = self._run_tool_call(tool_call)
+                yield {
+                    "type": "tool_result",
+                    "name": tool_call.function.name,
+                    "result": result,
+                }
+                round_results.append(f"{tool_call.function.name}: {result}")
 
-                    logger.info("Tool call: %s(%s)", tool_name, tool_args)
-                    result = execute_tool(tool_name, tool_args)
-                    logger.info("Tool result: %s", result)
+            if message.content:
+                messages.append({"role": "assistant", "content": message.content})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Results from the tools you just used:\n"
+                        + "\n".join(f"- {r}" for r in round_results)
+                        + _RESULTS_INSTRUCTION
+                    ),
+                }
+            )
+        else:
+            logger.warning("Tool loop hit max rounds (%d) without a reply.", self.max_tool_rounds)
 
-                    # Feed tool result back to the conversation
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": str(result),
-                        }
-                    )
-                # Loop back to let the LLM process tool results
-                continue
+        # ── Empty-response fallback ─────────────────────────────────────────
+        if not reply or not reply.strip():
+            logger.warning("Model returned an empty reply for: %r", user_message)
+            reply = FALLBACK_REPLY
 
-            # No tool calls — we have the final text response
-            reply = assistant_message.content or ""
-            self.memory.add_message("assistant", reply)
-            return reply
-
-        # Exceeded max tool rounds
-        fallback = "I seem to be stuck in a loop. Let me try a simpler approach."
-        self.memory.add_message("assistant", fallback)
-        return fallback
+        logger.info("Reply: %s", reply)
+        self.memory.add_message("assistant", reply)
+        yield {"type": "final", "text": reply}
 
     # ── private helpers ───────────────────────────────────────────────────
 
+    def _chat(self, messages: list[dict], with_tools: bool):
+        """Single chat-completion call against the configured provider."""
+        kwargs: dict = {
+            "model": LLM_MODEL,
+            "messages": messages,
+            "temperature": OLLAMA_TEMPERATURE,
+            "max_tokens": OLLAMA_MAX_TOKENS,
+        }
+        # keep_alive / num_thread are Ollama-specific; don't send them to clouds.
+        if IS_OLLAMA:
+            extra: dict = {"keep_alive": -1}  # keep the model resident in RAM
+            if OLLAMA_NUM_THREADS > 0:
+                extra["options"] = {"num_thread": OLLAMA_NUM_THREADS}
+            kwargs["extra_body"] = extra
+        if with_tools and TOOL_SCHEMAS:
+            kwargs["tools"] = TOOL_SCHEMAS
+            kwargs["tool_choice"] = "auto"
+        return self.client.chat.completions.create(**kwargs)
+
+    def _run_tool_call(self, tool_call) -> str:
+        """Parse arguments, execute a single tool call, and return its result."""
+        name = tool_call.function.name
+        try:
+            args = json.loads(tool_call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        logger.info("Tool call: %s(%s)", name, args)
+        result = execute_tool(name, args, memory=self.memory)
+        logger.info("Tool result: %s", result)
+        return result
+
     def _build_messages(self) -> list[dict]:
-        """Assemble the system prompt + recent conversation history."""
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        """Assemble the system prompt followed by recent conversation history."""
+        messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(self.memory.get_recent_messages())
         return messages
