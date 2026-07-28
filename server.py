@@ -26,6 +26,7 @@ from config import (
     LLM_PROVIDER,
     MAX_UPLOAD_BYTES,
     WAKE_WORD_ALTERNATIVES,
+    OLLAMA_TEMPERATURE,
 )
 from memory import MemoryManager
 from tools import _safe_path, _workspace_root
@@ -51,15 +52,49 @@ class ChatRequest(BaseModel):
 # ── Health & info ─────────────────────────────────────────────────────────────
 
 
+class ConfigUpdateRequest(BaseModel):
+    model: str | None = None
+    temperature: float | None = None
+
+
 @app.get("/health")
 def health() -> dict:
     """Readiness probe used by the launcher before opening the browser."""
     return {
         "status": "ok",
         "provider": LLM_PROVIDER,
-        "model": LLM_MODEL,
+        "model": _brain.get_model(),
         "dangerous_tools_enabled": ALLOW_DANGEROUS_TOOLS,
         "wake_words": WAKE_WORD_ALTERNATIVES,
+    }
+
+
+@app.get("/models")
+async def list_models() -> dict:
+    import httpx
+    if LLM_PROVIDER == "ollama":
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get("http://localhost:11434/api/tags", timeout=2.0)
+                if resp.status_code == 200:
+                    models = [m["name"] for m in resp.json().get("models", [])]
+                    if models:
+                        return {"provider": "ollama", "models": models, "active": _brain.get_model()}
+        except Exception:
+            pass
+    return {"provider": LLM_PROVIDER, "models": [LLM_MODEL], "active": _brain.get_model()}
+
+
+@app.post("/config")
+def update_config(req: ConfigUpdateRequest) -> dict:
+    if req.model is not None:
+        _brain.model_override = req.model
+    if req.temperature is not None:
+        _brain.temperature_override = req.temperature
+    return {
+        "status": "success",
+        "model": _brain.get_model(),
+        "temperature": _brain.temperature_override if _brain.temperature_override is not None else OLLAMA_TEMPERATURE
     }
 
 
@@ -117,6 +152,11 @@ async def stream(ws: WebSocket) -> None:
 
 
 # ── Memory panel ──────────────────────────────────────────────────────────────
+
+
+@app.get("/messages")
+def get_messages() -> dict:
+    return {"messages": _memory.get_recent_messages(50)}
 
 
 @app.get("/memory/facts")

@@ -57,6 +57,16 @@ class JarvisBrain:
         self.client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "none")
         self.memory = memory
         self.max_tool_rounds = MAX_TOOL_ROUNDS
+        self.model_override = None
+        self.temperature_override = None
+
+    def get_model(self) -> str:
+        return self.model_override or LLM_MODEL
+
+    def _is_simple_greeting(self, text: str) -> bool:
+        clean = text.strip().lower().replace("jarvis", "").replace("assistant", "").strip(",.!? ")
+        greetings = {"hi", "hello", "hey", "good morning", "good afternoon", "good evening", "yo", "greetings", "hi there", "hello there"}
+        return clean in greetings
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -108,8 +118,10 @@ class JarvisBrain:
             # On the final allowed round, drop the tools so the model is forced
             # to produce a textual answer instead of requesting more calls.
             is_last_round = round_num == self.max_tool_rounds - 1
+            is_greeting = round_num == 0 and self._is_simple_greeting(user_message)
+            with_tools = not is_last_round and not is_greeting
             try:
-                response = self._chat(messages, with_tools=not is_last_round)
+                response = self._chat(messages, with_tools=with_tools)
             except Exception as e:  # noqa: BLE001
                 logger.error("LLM request failed: %s", e)
                 reply = f"I'm having trouble connecting to my brain. Error: {e}"
@@ -163,10 +175,12 @@ class JarvisBrain:
 
     def _chat(self, messages: list[dict], with_tools: bool):
         """Single chat-completion call against the configured provider."""
+        model = self.model_override or LLM_MODEL
+        temp = self.temperature_override if self.temperature_override is not None else OLLAMA_TEMPERATURE
         kwargs: dict = {
-            "model": LLM_MODEL,
+            "model": model,
             "messages": messages,
-            "temperature": OLLAMA_TEMPERATURE,
+            "temperature": temp,
             "max_tokens": OLLAMA_MAX_TOKENS,
         }
         # keep_alive / num_thread are Ollama-specific; don't send them to clouds.

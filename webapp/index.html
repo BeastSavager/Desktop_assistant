@@ -1,52 +1,782 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jarvis AI Assistant</title>
+  <title>JARVIS — Desktop AI Assistant</title>
+  
+  <!-- Premium Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+  
+  <!-- Icon Libraries (FontAwesome & Lucide) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- PrismJS syntax highlighting for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  
+  <!-- MarkedJS for markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header id="topbar">
-    <div class="brand">⚡ JARVIS</div>
-    <div class="status">
-      <span id="statusDot" class="dot"></span>
-      <span id="statusText">Connecting…</span>
-      <span id="dangerBadge" class="badge hidden">⚠ Dangerous tools ON</span>
-      <span id="modelInfo" class="muted"></span>
-    </div>
-    <div class="header-actions">
-      <button id="wakeBtn" class="ghost" title="Hands-free: say 'Hey Jarvis'">🎙️ Hey Jarvis: OFF</button>
-      <button id="toggleSidebar" class="ghost">☰ Panels</button>
-    </div>
-  </header>
 
-  <main>
-    <section id="chatPane">
-      <div id="messages"></div>
-      <div id="activity" class="activity hidden"></div>
-      <div id="inputBar">
-        <button id="micBtn" class="icon" title="Hold to talk">🎙️</button>
-        <input id="textInput" type="text" placeholder="Ask Jarvis anything…" autocomplete="off" />
-        <button id="sendBtn" class="primary">➔</button>
+  <!-- App Wrapper for 3-Column Layout -->
+  <div class="app-container">
+    
+    <!-- ========================================== -->
+    <!-- LEFT SIDEBAR                               -->
+    <!-- ========================================== -->
+    <aside id="leftSidebar" class="sidebar left-sidebar">
+      <div class="sidebar-header">
+        <div class="logo-area">
+          <div class="logo-glow"></div>
+          <span class="logo-icon">⚡</span>
+          <span class="logo-text">JARVIS</span>
+        </div>
+        <button id="toggleLeftSidebar" class="icon-btn sidebar-toggle" title="Collapse Sidebar">
+          <i data-lucide="sidebar"></i>
+        </button>
       </div>
-    </section>
 
-    <aside id="sidebar">
-      <div class="panel">
-        <h3>📁 Workspace</h3>
-        <div id="dropZone" class="drop">Drop files here or click to upload</div>
-        <input id="fileInput" type="file" class="hidden" />
-        <ul id="fileList" class="list"></ul>
+      <div class="sidebar-actions">
+        <button id="newChatBtn" class="btn primary-btn w-full">
+          <i data-lucide="plus"></i>
+          <span>New Chat</span>
+        </button>
+        <div class="search-box">
+          <i data-lucide="search"></i>
+          <input type="text" id="chatSearch" placeholder="Search chats..." autocomplete="off" />
+        </div>
       </div>
-      <div class="panel">
-        <h3>🧠 Memory</h3>
-        <ul id="factList" class="list"></ul>
-        <button id="clearHistoryBtn" class="ghost small">Clear conversation history</button>
+
+      <nav class="sidebar-nav">
+        <!-- Main Navigation Links -->
+        <div class="nav-section">
+          <span class="section-title">Navigation</span>
+          <a href="#" class="nav-item active" data-view="chat">
+            <i data-lucide="message-square"></i>
+            <span>Chat</span>
+          </a>
+          <a href="#" class="nav-item" id="navMemoryBtn" data-view="memory">
+            <i data-lucide="brain"></i>
+            <span>Memory</span>
+            <span id="factCountBadge" class="nav-badge">0</span>
+          </a>
+          <a href="#" class="nav-item" id="navToolsBtn" data-view="tools">
+            <i data-lucide="wrench"></i>
+            <span>Tools</span>
+          </a>
+          <a href="#" class="nav-item" id="navPluginsBtn" data-view="plugins">
+            <i data-lucide="puzzle"></i>
+            <span>Plugins</span>
+          </a>
+          <a href="#" class="nav-item" id="navAutomationBtn" data-view="automation">
+            <i data-lucide="cpu"></i>
+            <span>Automation</span>
+          </a>
+        </div>
+
+        <!-- Chat History -->
+        <div class="nav-section scrollable">
+          <div class="section-header">
+            <span class="section-title">Conversations</span>
+            <button id="clearHistoryBtn" class="clear-history-btn" title="Clear All History">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+          <ul id="historyList" class="history-list">
+            <!-- Populated via Javascript -->
+          </ul>
+        </div>
+      </nav>
+
+      <!-- Bottom Profile and Status Section -->
+      <div class="sidebar-footer">
+        <div class="model-badge">
+          <i data-lucide="cpu"></i>
+          <div class="model-details">
+            <span class="model-title">Active AI Model</span>
+            <span id="modelInfo" class="model-name">Ollama · llama3.2</span>
+          </div>
+        </div>
+        
+        <div class="storage-widget">
+          <div class="storage-info">
+            <span>Workspace Size</span>
+            <span id="storageText">1.2 GB / 10 GB</span>
+          </div>
+          <div class="progress-bar">
+            <div id="storageProgress" class="progress-fill" style="width: 12%"></div>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <img src="https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=80&h=80&q=80" alt="User Profile" class="avatar" />
+          <div class="profile-info">
+            <span class="profile-name">Tony Stark</span>
+            <span class="profile-role">System Admin</span>
+          </div>
+          <button id="openSettingsBtn" class="icon-btn" title="Settings">
+            <i data-lucide="settings"></i>
+          </button>
+        </div>
+        <div class="app-version">Version 2.6.0-beta</div>
       </div>
     </aside>
-  </main>
 
+    <!-- ========================================== -->
+    <!-- CENTER PANEL                               -->
+    <!-- ========================================== -->
+    <main class="center-panel">
+      <!-- Top Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <button id="expandLeftSidebar" class="icon-btn sidebar-toggle hidden" title="Expand Sidebar">
+            <i data-lucide="sidebar"></i>
+          </button>
+          <div class="system-status">
+            <span id="statusDot" class="dot"></span>
+            <span id="statusText" class="status-label">Ready</span>
+            <span id="dangerBadge" class="badge danger-badge hidden">
+              <i data-lucide="shield-alert"></i> Dangerous Tools ON
+            </span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Quick Status Badges -->
+          <div class="quick-status">
+            <button id="wakeBtn" class="status-badge voice-toggle-badge" title="Hands-Free wake-word listening">
+              <i data-lucide="mic"></i>
+              <span>Hey Jarvis: OFF</span>
+            </button>
+            <span class="status-badge">
+              <i data-lucide="brain-circuit"></i>
+              <span id="memoryBadgeText">0 facts</span>
+            </span>
+          </div>
+
+          <div class="header-actions">
+            <button id="notificationBtn" class="icon-btn notification-btn" title="Notifications">
+              <i data-lucide="bell"></i>
+              <span class="indicator"></span>
+            </button>
+            <button id="toggleRightSidebar" class="icon-btn" title="Toggle Context Panel">
+              <i data-lucide="layout-sidebar-right"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Area Scroll Container -->
+      <div class="main-content-wrapper">
+        
+        <!-- Welcome Screen (Shown when chat is empty) -->
+        <section id="welcomeScreen" class="welcome-screen">
+          <div class="logo-container">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="ai-logo-core">
+              <span>⚡</span>
+            </div>
+          </div>
+          <h1 class="welcome-title">How can I help you today?</h1>
+          <p class="welcome-subtitle">Ask anything or select a command below to control your machine and access the web.</p>
+          
+          <div class="suggestion-grid">
+            <div class="suggest-card" data-prompt="Write a Python script for a binary search tree with comments">
+              <div class="card-glow"></div>
+              <div class="card-icon code"><i data-lucide="code-2"></i></div>
+              <h3 class="card-title">Write Code</h3>
+              <p class="card-desc">Create scripts, functions, or UI markup in any language.</p>
+            </div>
+            
+            <div class="suggest-card" data-prompt="Explain how this application workspace runs and security considerations">
+              <div class="card-glow"></div>
+              <div class="card-icon explain"><i data-lucide="help-circle"></i></div>
+              <h3 class="card-title">Explain Code</h3>
+              <p class="card-desc">Walk through logical blocks, inspect bugs, or refactor functions.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="List all files in my workspace and summarize the PDFs">
+              <div class="card-glow"></div>
+              <div class="card-icon doc"><i data-lucide="file-text"></i></div>
+              <h3 class="card-title">Summarize PDF</h3>
+              <p class="card-desc">Extract text and generate summaries from uploaded documents.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="Draft a professional progress update email for the tech team">
+              <div class="card-glow"></div>
+              <div class="card-icon email"><i data-lucide="mail"></i></div>
+              <h3 class="card-title">Generate Email</h3>
+              <p class="card-desc">Write emails, reports, or blog drafts matching your style.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="Open Chrome and navigate to github.com">
+              <div class="card-glow"></div>
+              <div class="card-icon apps"><i data-lucide="chrome"></i></div>
+              <h3 class="card-title">Open Applications</h3>
+              <p class="card-desc">Launch Chrome, VS Code, or other installed tools.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="Search for text 'API' inside the workspace files">
+              <div class="card-glow"></div>
+              <div class="card-icon search"><i data-lucide="folder-search"></i></div>
+              <h3 class="card-title">Search Files</h3>
+              <p class="card-desc">Find matching text occurrences across all local workspace files.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="Search the web for the latest artificial intelligence news of the week">
+              <div class="card-glow"></div>
+              <div class="card-icon web"><i data-lucide="globe"></i></div>
+              <h3 class="card-title">Search Web</h3>
+              <p class="card-desc">Find and retrieve information from live web pages.</p>
+            </div>
+
+            <div class="suggest-card" data-prompt="Run system command 'dir' to check my system directory">
+              <div class="card-glow"></div>
+              <div class="card-icon shell"><i data-lucide="terminal"></i></div>
+              <h3 class="card-title">Control Windows</h3>
+              <p class="card-desc">Execute shell commands or interact with pyautogui keys.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Chat Pane (Hidden initially if empty, shown when active) -->
+        <section id="chatPane" class="chat-pane hidden">
+          <div id="messages" class="messages-container"></div>
+          <div id="activity" class="activity-row hidden">
+            <!-- Streaming tool or thinking indicator -->
+          </div>
+        </section>
+        
+      </div>
+
+      <!-- Floating Glass Input Bar -->
+      <footer class="input-section">
+        <div class="input-container-glass">
+          <div class="input-row-main">
+            <!-- Left Accessories -->
+            <div class="input-accessories">
+              <button id="clipBtn" class="icon-btn input-action-btn" title="Upload File">
+                <i data-lucide="paperclip"></i>
+              </button>
+              <button id="micBtn" class="icon-btn input-action-btn" title="Microphone Input">
+                <i data-lucide="mic"></i>
+              </button>
+              <button id="cameraBtn" class="icon-btn input-action-btn" title="Analyze Image (Mock)">
+                <i data-lucide="camera"></i>
+              </button>
+              <button id="pasteClipboardBtn" class="icon-btn input-action-btn" title="Paste Clipboard">
+                <i data-lucide="clipboard"></i>
+              </button>
+            </div>
+
+            <!-- Text Input Area -->
+            <div class="input-text-wrapper">
+              <textarea id="textInput" rows="1" placeholder="Type a message or run a command..." autocomplete="off"></textarea>
+            </div>
+
+            <!-- Send Button -->
+            <button id="sendBtn" class="send-btn" title="Send Message">
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+          
+          <div class="input-row-controls">
+            <!-- Model Selection dropdown -->
+            <div class="control-item">
+              <i data-lucide="cpu" class="control-icon"></i>
+              <select id="modelSelector">
+                <option value="ollama" selected>Ollama (Local llama3.2)</option>
+                <option value="gpt-4o-mini">GPT-4o Mini (Cloud)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Cloud)</option>
+                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Cloud)</option>
+              </select>
+            </div>
+
+            <!-- Temperature Slider -->
+            <div class="control-item">
+              <i data-lucide="thermometer" class="control-icon"></i>
+              <span>Temp:</span>
+              <input type="range" id="tempSlider" min="0" max="1" step="0.1" value="0.5" />
+              <span id="tempValue">0.5</span>
+            </div>
+
+            <!-- Safety / Tools Mode toggle -->
+            <div class="control-item ml-auto">
+              <i data-lucide="shield-check" class="control-icon"></i>
+              <span>Dangerous Tools:</span>
+              <label class="switch-toggle">
+                <input type="checkbox" id="dangerousToolsSwitch">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- RIGHT SIDEBAR (CONTEXT PANEL)              -->
+    <!-- ========================================== -->
+    <aside id="rightSidebar" class="sidebar right-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title"><i data-lucide="layout-dashboard"></i> System Context</span>
+        <button id="toggleRightSidebarClose" class="icon-btn" title="Close Panel">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="sidebar-content">
+        <!-- System Monitors -->
+        <div class="widget-section">
+          <span class="widget-title">Performance Monitors</span>
+          <div class="monitors-grid">
+            <div class="monitor-card">
+              <span class="monitor-label">CPU</span>
+              <div class="radial-progress" style="--value: 14;" id="cpuDial">
+                <span id="cpuText">14%</span>
+              </div>
+            </div>
+            <div class="monitor-card">
+              <span class="monitor-label">RAM</span>
+              <div class="radial-progress" style="--value: 48;" id="ramDial">
+                <span id="ramText">48%</span>
+              </div>
+            </div>
+            <div class="monitor-card">
+              <span class="monitor-label">GPU</span>
+              <div class="radial-progress" style="--value: 5;" id="gpuDial">
+                <span id="gpuText">5%</span>
+              </div>
+            </div>
+            <div class="monitor-card">
+              <span class="monitor-label">Memory</span>
+              <div class="radial-progress animate-memory" style="--value: 28;" id="memoryDial">
+                <span id="memoryText">256MB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection and Mic Status -->
+        <div class="widget-section">
+          <span class="widget-title">Hardware & Link</span>
+          <div class="status-list">
+            <div class="status-row">
+              <span class="label"><i data-lucide="mic"></i> Microphone</span>
+              <span id="micStatusText" class="val inactive">Inactive</span>
+            </div>
+            <div class="status-row">
+              <span class="label"><i data-lucide="wifi"></i> Internet</span>
+              <span id="internetStatusText" class="val active">Online</span>
+            </div>
+            <div class="status-row">
+              <span class="label"><i data-lucide="refresh-cw"></i> Running State</span>
+              <span class="val active">Idle</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Running Processes -->
+        <div class="widget-section">
+          <span class="widget-title">Process Matrix</span>
+          <ul class="process-list">
+            <li>
+              <div class="process-indicator running"></div>
+              <span class="process-name">FastAPI Backend</span>
+              <span class="process-port">Port 8765</span>
+            </li>
+            <li>
+              <div id="processOllamaIndicator" class="process-indicator running"></div>
+              <span class="process-name">Ollama Engine</span>
+              <span id="processOllamaText" class="process-port">Active</span>
+            </li>
+            <li>
+              <div class="process-indicator stopped"></div>
+              <span class="process-name">Keyboard Dispatcher</span>
+              <span class="process-port">Gated</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- File Workspace Drop Zone & List -->
+        <div class="widget-section scrollable">
+          <div class="section-header">
+            <span class="widget-title">📁 File Workspace</span>
+          </div>
+          
+          <div id="dropZone" class="drop-zone">
+            <i data-lucide="upload-cloud"></i>
+            <span>Drag & drop files here</span>
+            <span class="muted">PDF, DOCX, TXT, JSON</span>
+          </div>
+          <input id="fileInput" type="file" class="hidden" />
+
+          <ul id="fileList" class="file-list">
+            <!-- Loaded via app.js -->
+          </ul>
+        </div>
+
+        <!-- Calendar Card -->
+        <div class="widget-section">
+          <div class="calendar-card">
+            <div class="calendar-header">
+              <span id="calMonth">JULY</span>
+              <span id="calYear">2026</span>
+            </div>
+            <div class="calendar-body">
+              <span id="calDayName" class="day-name">Saturday</span>
+              <span id="calDayNum" class="day-number">18</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clipboard Preview -->
+        <div class="widget-section">
+          <span class="widget-title">System Clipboard</span>
+          <div class="clipboard-preview">
+            <p id="clipboardText" class="muted">Clipboard is empty or permissions not granted</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div> <!-- End App Container -->
+
+  <!-- ========================================== -->
+  <!-- COMMAND PALETTE OVERLAY                    -->
+  <!-- ========================================== -->
+  <div id="commandPalette" class="modal-overlay hidden">
+    <div class="command-palette-card">
+      <div class="palette-header">
+        <i data-lucide="terminal"></i>
+        <input type="text" id="paletteSearch" placeholder="Type a command or search action..." autocomplete="off" />
+        <span class="kbd">ESC</span>
+      </div>
+      <div class="palette-content">
+        <ul id="paletteResults">
+          <!-- Populated via Javascript -->
+        </ul>
+      </div>
+      <div class="palette-footer">
+        <span>Use <i class="fa-solid fa-arrow-up-long"></i> <i class="fa-solid fa-arrow-down-long"></i> to navigate, <span class="kbd">Enter</span> to select.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SETTINGS MODAL                             -->
+  <!-- ========================================== -->
+  <div id="settingsModal" class="modal-overlay hidden">
+    <div class="settings-card">
+      <div class="settings-sidebar">
+        <div class="settings-sidebar-header">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </div>
+        <ul class="settings-tabs">
+          <li class="tab-item active" data-tab="general"><i data-lucide="sliders"></i> General</li>
+          <li class="tab-item" data-tab="models"><i data-lucide="cpu"></i> AI Models</li>
+          <li class="tab-item" data-tab="voice"><i data-lucide="mic"></i> Voice Settings</li>
+          <li class="tab-item" data-tab="memory"><i data-lucide="brain"></i> Memory & Facts</li>
+          <li class="tab-item" data-tab="plugins"><i data-lucide="puzzle"></i> Plugins</li>
+          <li class="tab-item" data-tab="automation"><i data-lucide="zap"></i> Automation</li>
+          <li class="tab-item" data-tab="appearance"><i data-lucide="palette"></i> Appearance</li>
+          <li class="tab-item" data-tab="shortcuts"><i data-lucide="keyboard"></i> Shortcuts</li>
+          <li class="tab-item" data-tab="system"><i data-lucide="monitor"></i> System Info</li>
+          <li class="tab-item" data-tab="about"><i data-lucide="info"></i> About Jarvis</li>
+        </ul>
+      </div>
+
+      <div class="settings-content-wrapper">
+        <div class="settings-content-header">
+          <h2 id="settingsTabTitle">General</h2>
+          <button id="closeSettingsModalBtn" class="icon-btn" title="Close Settings">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        
+        <div class="settings-panes">
+          <!-- GENERAL TAB -->
+          <div class="settings-pane active" id="pane-general">
+            <div class="settings-group">
+              <h3>Preferences</h3>
+              <div class="setting-row">
+                <div class="setting-detail">
+                  <span class="setting-label">Auto-open Browser on launch</span>
+                  <span class="setting-desc">Opens the JARVIS workspace automatically on startup.</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" checked />
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-detail">
+                  <span class="setting-label">Show dangerous tool indicators</span>
+                  <span class="setting-desc">Displays a warning banner when shell access is enabled.</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="settingShowDangerBadge" checked />
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+            </div>
+            <div class="settings-group">
+              <h3>System Startup</h3>
+              <div class="setting-row">
+                <div class="setting-detail">
+                  <span class="setting-label">Run on System Login</span>
+                  <span class="setting-desc">Add JARVIS to Windows startup programs.</span>
+                </div>
+                <button class="btn secondary-btn" id="toggleStartupBtn">Configure</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODELS TAB -->
+          <div class="settings-pane" id="pane-models">
+            <div class="settings-group">
+              <h3>Provider Switcher</h3>
+              <div class="form-group">
+                <label for="settingsProvider">LLM Provider</label>
+                <select id="settingsProvider" class="form-control">
+                  <option value="ollama">Ollama (Localhouse)</option>
+                  <option value="openai_compatible">OpenAI Compatible (Cloud)</option>
+                </select>
+              </div>
+              <div class="form-group" id="cloudModelGroup" style="display:none;">
+                <label for="settingsApiKey">Cloud API Key</label>
+                <input type="password" id="settingsApiKey" class="form-control" placeholder="sk-..." />
+                <label for="settingsBaseUrl" class="mt-2">Base URL</label>
+                <input type="text" id="settingsBaseUrl" class="form-control" placeholder="https://api.openai.com/v1" />
+                <label for="settingsModelName" class="mt-2">Model Name</label>
+                <input type="text" id="settingsModelName" class="form-control" placeholder="gpt-4o-mini" />
+              </div>
+            </div>
+          </div>
+
+          <!-- VOICE TAB -->
+          <div class="settings-pane" id="pane-voice">
+            <div class="settings-group">
+              <h3>Web Speech Settings</h3>
+              <div class="setting-row">
+                <div class="setting-detail">
+                  <span class="setting-label">Voice Synthesis</span>
+                  <span class="setting-desc">Speak response answers back aloud.</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="settingSpeakToggle" checked />
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label for="voiceSelect">Browser Speech Voice</label>
+                <select id="voiceSelect" class="form-control">
+                  <!-- Loaded dynamically via JS -->
+                </select>
+              </div>
+              <div class="setting-row mt-3">
+                <div class="setting-detail">
+                  <span class="setting-label">Wake Word Listening</span>
+                  <span class="setting-desc">Listen continuously for "Hey Jarvis" to activate command mode.</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" id="settingWakeToggle" />
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- MEMORY TAB -->
+          <div class="settings-pane" id="pane-memory">
+            <div class="settings-group">
+              <h3>Long-term Memory Store</h3>
+              <p class="muted">These facts are persisted in your local SQLite database and injected into system prompts.</p>
+              <div class="fact-manager">
+                <ul id="factList" class="fact-list">
+                  <!-- Loaded via JS -->
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- PLUGINS TAB -->
+          <div class="settings-pane" id="pane-plugins">
+            <div class="settings-group">
+              <h3>Available Integrations</h3>
+              <div class="plugin-item">
+                <div class="plugin-meta">
+                  <span class="plugin-title">File Workspace Sandbox</span>
+                  <span class="plugin-desc">Confined to the local ./workspace directory. Supports pdf, docx, json, csv, md.</span>
+                </div>
+                <span class="plugin-status active">Active</span>
+              </div>
+              <div class="plugin-item mt-2">
+                <div class="plugin-meta">
+                  <span class="plugin-title">Real Internet Access</span>
+                  <span class="plugin-desc">Fetches webpage contents and runs web search queries via DuckDuckGo.</span>
+                </div>
+                <span class="plugin-status active">Active</span>
+              </div>
+              <div class="plugin-item mt-2">
+                <div class="plugin-meta">
+                  <span class="plugin-title">Desktop Control (Dangerous Tools)</span>
+                  <span class="plugin-desc">Types keys and runs command line tools when ALLOW_DANGEROUS_TOOLS is enabled.</span>
+                </div>
+                <span id="dangerToolStatusPlugin" class="plugin-status inactive">Inactive</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AUTOMATION TAB -->
+          <div class="settings-pane" id="pane-automation">
+            <div class="settings-group">
+              <h3>Auto-Pilot & Cron</h3>
+              <p class="muted">Schedule recurring system tasks or create local event triggers.</p>
+              <div class="automation-placeholder text-center py-4">
+                <i data-lucide="clock" style="width: 48px; height: 48px;" class="muted"></i>
+                <h4 class="mt-2">No active automations</h4>
+                <p class="muted">JARVIS cron schedules are configured in Pyproject / configurations.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- APPEARANCE TAB -->
+          <div class="settings-pane" id="pane-appearance">
+            <div class="settings-group">
+              <h3>Theme Preference</h3>
+              <div class="theme-grid">
+                <div class="theme-option active" data-theme-val="dark">
+                  <div class="theme-preview dark"></div>
+                  <span>Dark Mode</span>
+                </div>
+                <div class="theme-option" data-theme-val="light">
+                  <div class="theme-preview light"></div>
+                  <span>Light Mode</span>
+                </div>
+                <div class="theme-option" data-theme-val="system">
+                  <div class="theme-preview system"></div>
+                  <span>System Default</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SHORTCUTS TAB -->
+          <div class="settings-pane" id="pane-shortcuts">
+            <div class="settings-group">
+              <h3>Global Hotkeys</h3>
+              <div class="shortcut-list">
+                <div class="shortcut-row">
+                  <span>Toggle Command Palette</span>
+                  <span class="kbd">Ctrl + K</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Open Settings Panel</span>
+                  <span class="kbd">Ctrl + ,</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Create New Chat Session</span>
+                  <span class="kbd">Ctrl + N</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Toggle Sidebar Layout</span>
+                  <span class="kbd">Ctrl + B</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Clear Conversation Logs</span>
+                  <span class="kbd">Ctrl + Shift + X</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SYSTEM TAB -->
+          <div class="settings-pane" id="pane-system">
+            <div class="settings-group">
+              <h3>Backend Specifications</h3>
+              <div class="shortcut-list">
+                <div class="shortcut-row">
+                  <span>Web Host Binds</span>
+                  <span class="val" id="sysHost">127.0.0.1:8765</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Safety Mode</span>
+                  <span class="val" id="sysSafety">Sandboxed (Dangerous Tools Off)</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>SQLite DB Path</span>
+                  <span class="val">./jarvis_memory.db</span>
+                </div>
+                <div class="shortcut-row">
+                  <span>Active Workspace</span>
+                  <span class="val" id="sysWorkspace">./workspace</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ABOUT TAB -->
+          <div class="settings-pane" id="pane-about">
+            <div class="settings-group text-center">
+              <div class="ai-logo-core mx-auto" style="width: 60px; height: 60px; font-size: 24px; line-height: 60px;">
+                <span>⚡</span>
+              </div>
+              <h3 class="mt-2">JARVIS Assistant</h3>
+              <p class="muted">An advanced locally-hosted agentic workspace assistant.</p>
+              <div class="app-info-block mt-4">
+                <p>Designed and Built for local execution.</p>
+                <p class="muted">Developed under the MIT License.</p>
+              </div>
+            </div>
+          </div>
+
+        </div> <!-- End Settings Panes -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- VOICE WAVEFORM OVERLAY                     -->
+  <!-- ========================================== -->
+  <div id="voiceOverlay" class="voice-overlay hidden">
+    <div class="voice-card">
+      <div class="wave-container">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+      <div class="voice-status" id="voiceOverlayStatus">Listening...</div>
+      <p class="muted">Speak your query now. Say "cancel" or click close to return.</p>
+      <button id="closeVoiceOverlayBtn" class="btn secondary-btn mt-4">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Core Javascript -->
   <script src="/app.js"></script>
+  
+  <!-- Trigger Lucide Icons Rendering -->
+  <script>
+    lucide.createIcons();
+  </script>
 </body>
 </html>
